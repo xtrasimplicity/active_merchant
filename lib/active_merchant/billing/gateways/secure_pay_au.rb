@@ -4,7 +4,7 @@ module ActiveMerchant #:nodoc:
   module Billing #:nodoc:
     class SecurePayAuGateway < Gateway
       API_VERSION = 'xml-4.2'
-      PERIODIC_API_VERSION = 'spxml-3.0'
+      PERIODIC_API_VERSION = 'spxml-4.2'
 
       class_attribute :test_periodic_url, :live_periodic_url
 
@@ -35,23 +35,33 @@ module ActiveMerchant #:nodoc:
       # 10 Preauthorise
       # 11 Preauth Complete (Advice)
       TRANSACTIONS = {
-        :purchase => 0,
-        :authorization => 10,
-        :capture => 11,
-        :void => 6,
-        :refund => 4
+        :purchase       => 0,
+        :authorization  => 10,
+        :capture        => 11,
+        :void           => 6,
+        :refund         => 4
       }
 
-      PERIODIC_ACTIONS = {
-        :add_triggered    => "add",
-        :remove_triggered => "delete",
-        :trigger          => "trigger"
+      PERIODIC_ACTION_TYPES = {
+        :add      => "add",
+        :remove   => "delete",
+        :trigger  => "trigger"
       }
 
       PERIODIC_TYPES = {
-        :add_triggered    => 4,
-        :remove_triggered => nil,
-        :trigger          => nil
+        :once_off   => 1,
+        :day        => 2,
+        :calendar   => 3,
+        :triggered  => 4,
+      }
+
+      CALENDAR_INTERVALS = {
+        :weekly       => 1,
+        :fortnightly  => 2,
+        :monthly      => 3,
+        :quarterly    => 4,
+        :half_yearly  => 5,
+        :annually     => 6
       }
 
       SUCCESS_CODES = [ '00', '08', '11', '16', '77' ]
@@ -61,14 +71,18 @@ module ActiveMerchant #:nodoc:
         super
       end
 
-      def purchase(money, credit_card_or_stored_id, options = {})
-        if credit_card_or_stored_id.respond_to?(:number)
-          requires!(options, :order_id)
-          commit :purchase, build_purchase_request(money, credit_card_or_stored_id, options)
+      def purchase(money, credit_card, options = {})
+        requires!(options, :order_id)
+        if !credit_card.nil?
+          commit :purchase, build_purchase_request(money, credit_card, options)
         else
-          options[:billing_id] = credit_card_or_stored_id.to_s
-          commit_periodic(build_periodic_item(:trigger, money, nil, options))
+          commit_periodic(build_periodic_item(:trigger, :triggered, money, nil, options))
         end
+      end
+
+      def recurring(periodic_type, interval, start_date, number_of_payments, money, credit_card, options = {})
+        requires!(options, :order_id)
+        commit_periodic(build_recurring_item(:add, periodic_type, interval, start_date, number_of_payments, money, credit_card, options))
       end
 
       def authorize(money, credit_card, options = {})
@@ -93,14 +107,14 @@ module ActiveMerchant #:nodoc:
         commit :void, build_reference_request(nil, reference)
       end
 
-      def store(creditcard, options = {})
-        requires!(options, :billing_id, :amount)
-        commit_periodic(build_periodic_item(:add_triggered, options[:amount], creditcard, options))
+      def store(money, creditcard, options = {})
+        requires!(options, :order_id)
+        commit_periodic(build_periodic_item(:add, :triggered, money, creditcard, options))
       end
 
-      def unstore(identification, options = {})
-        options[:billing_id] = identification
-        commit_periodic(build_periodic_item(:remove_triggered, options[:amount], nil, options))
+      def unstore(options)
+        requires!(options, :order_id)
+        commit_periodic(build_periodic_item(:remove, :triggered, nil, nil, options))
       end
 
       def supports_scrubbing?
@@ -189,11 +203,13 @@ module ActiveMerchant #:nodoc:
         )
       end
 
-      def build_periodic_item(action, money, credit_card, options)
+      def build_periodic_item(action_type, periodic_type, money, credit_card, options)
         xml = Builder::XmlMarkup.new
 
-        xml.tag! 'actionType', PERIODIC_ACTIONS[action]
-        xml.tag! 'clientID', options[:billing_id].to_s
+        xml.tag! 'actionType', PERIODIC_ACTION_TYPES[action_type]
+        xml.tag! 'periodicType', PERIODIC_TYPES[periodic_type]
+        xml.tag! 'amount', amount(money)
+        xml.tag! 'clientID', options[:order_id].to_s.gsub(/[ ']/, '')
 
         if credit_card
           xml.tag! 'CreditCardInfo' do
@@ -202,8 +218,28 @@ module ActiveMerchant #:nodoc:
             xml.tag! 'cvv', credit_card.verification_value if credit_card.verification_value?
           end
         end
+
+        xml.target!
+      end
+
+      def build_recurring_item(action_type, periodic_type, interval, start_date, number_of_payments, money, credit_card, options)
+        xml = Builder::XmlMarkup.new
+
+        xml.tag! 'actionType', PERIODIC_ACTION_TYPES[action_type]
+        xml.tag! 'periodicType', PERIODIC_TYPES[periodic_type]
+        xml.tag! 'paymentInterval', interval.is_a?(Symbol) ? CALENDAR_INTERVALS[interval] : interval
         xml.tag! 'amount', amount(money)
-        xml.tag! 'periodicType', PERIODIC_TYPES[action] if PERIODIC_TYPES[action]
+        xml.tag! 'clientID', options[:order_id].to_s.gsub(/[ ']/, '')
+        xml.tag! 'startDate', start_date
+        xml.tag! 'numberOfPayments', number_of_payments
+
+        if credit_card
+          xml.tag! 'CreditCardInfo' do
+            xml.tag! 'cardNumber', credit_card.number
+            xml.tag! 'expiryDate', expdate(credit_card)
+            xml.tag! 'cvv', credit_card.verification_value if credit_card.verification_value?
+          end
+        end
 
         xml.target!
       end
@@ -211,6 +247,7 @@ module ActiveMerchant #:nodoc:
       def build_periodic_request(body)
         xml = Builder::XmlMarkup.new
         xml.instruct!
+
         xml.tag! 'SecurePayMessage' do
           xml.tag! 'MessageInfo' do
             xml.tag! 'messageID', SecureRandom.hex(15)
@@ -225,6 +262,7 @@ module ActiveMerchant #:nodoc:
           end
 
           xml.tag! 'RequestType', 'Periodic'
+
           xml.tag! 'Periodic' do
             xml.tag! 'PeriodicList', "count" => 1 do
               xml.tag! 'PeriodicItem', "ID" => 1 do
@@ -233,6 +271,7 @@ module ActiveMerchant #:nodoc:
             end
           end
         end
+
         xml.target!
       end
 
