@@ -238,6 +238,7 @@ module ActiveMerchant #:nodoc:
             xml.tag! 'cardNumber', credit_card.number
             xml.tag! 'expiryDate', expdate(credit_card)
             xml.tag! 'cvv', credit_card.verification_value if credit_card.verification_value?
+            xml.tag! 'recurringFlag', 'yes' #set recurring flag
           end
         end
 
