@@ -2,7 +2,10 @@
 
 == HEAD
 * Braintree Blue: Explicitly require braintree-ruby version 2.78 [anotherjosmith]
+
+== Version 1.73.0 (September 28, 2017)
 * Adyen: Use original authorization pspReference on Refunds [lyverovski] #2589
+* Braintree Blue: Explicitly require braintree-ruby version 2.78 [anotherjosmith]
 * FirstData E4: Scrub 3DS cryptogram [jasonwebster] #2596
 * PayHub: Replace single quotes with double quotes in error message [matthewheath] #2572
 
