@@ -1,7 +1,7 @@
 = ActiveMerchant CHANGELOG
 
 == HEAD
-* Braintree Blue: Explicitly require braintree-ruby version 2.78 [anotherjosmith]
+* WePay: Only send ip and device for non-recurring transactions [dtykocki] #2597
 
 == Version 1.73.0 (September 28, 2017)
 * Adyen: Use original authorization pspReference on Refunds [lyverovski] #2589
