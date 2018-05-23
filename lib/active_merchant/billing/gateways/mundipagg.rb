@@ -153,7 +153,7 @@ module ActiveMerchant #:nodoc:
         post[:customer][:name] = payment.name if post[:customer]
         post[:customer_id] = parse_auth(payment)[0] if payment.is_a?(String)
         post[:payment] = {}
-        post[:payment][:gateway_affiliation_id] = @options[:gateway_id]
+        post[:payment][:gateway_affiliation_id] = @options[:gateway_id] if @options[:gateway_id]
         post[:payment][:metadata] = { mundipagg_payment_method_code: '1' } if test?
         if voucher?(payment)
           add_voucher(post, payment, options)
@@ -174,7 +174,9 @@ module ActiveMerchant #:nodoc:
           post[:payment][:credit_card][:card][:exp_month] = payment.month
           post[:payment][:credit_card][:card][:exp_year] = payment.year
           post[:payment][:credit_card][:card][:cvv] = payment.verification_value
-          post[:payment][:credit_card][:card][:billing_address] = add_billing_address(options)
+          if options[:billing_address] || options[:address]
+            post[:payment][:credit_card][:card][:billing_address] = add_billing_address(options)
+          end
         end
       end
 
@@ -189,7 +191,9 @@ module ActiveMerchant #:nodoc:
         post[:payment][:voucher][:card][:exp_month] = payment.month
         post[:payment][:voucher][:card][:exp_year] = payment.year
         post[:payment][:voucher][:card][:cvv] = payment.verification_value
-        post[:payment][:voucher][:card][:billing_address] = add_billing_address(options)
+        if options[:billing_address] || options[:address]
+          post[:payment][:voucher][:card][:billing_address] = add_billing_address(options)
+        end
       end
 
       def voucher?(payment)
