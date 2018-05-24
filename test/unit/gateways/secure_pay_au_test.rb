@@ -77,7 +77,7 @@ class SecurePayAuTest < Test::Unit::TestCase
   def test_purchase_with_stored_id_calls_commit_periodic
     @gateway.expects(:commit_periodic)
 
-    @gateway.purchase(@amount, "123", @options)
+    @gateway.purchase(@amount, nil, { :billing_id => '123' }.merge(@options))
   end
 
   def test_purchase_with_creditcard_calls_commit_with_purchase
@@ -167,7 +167,7 @@ class SecurePayAuTest < Test::Unit::TestCase
   def test_successful_store
     @gateway.expects(:ssl_post).returns(successful_store_response)
 
-    assert response = @gateway.store(@credit_card, {:billing_id => 'test3', :amount => 123})
+    assert response = @gateway.store(123, @credit_card, {:order_id => 'test3'})
     assert_instance_of Response, response
     assert_equal "Successful", response.message
     assert_equal 'test3', response.params['client_id']
@@ -176,7 +176,7 @@ class SecurePayAuTest < Test::Unit::TestCase
   def test_successful_unstore
     @gateway.expects(:ssl_post).returns(successful_unstore_response)
 
-    assert response = @gateway.unstore('test2')
+    assert response = @gateway.unstore({ :order_id =>  'test2' })
     assert_instance_of Response, response
     assert_equal "Successful", response.message
     assert_equal 'test2', response.params['client_id']
@@ -185,7 +185,7 @@ class SecurePayAuTest < Test::Unit::TestCase
   def test_successful_triggered_payment
     @gateway.expects(:ssl_post).returns(successful_triggered_payment_response)
 
-    assert response = @gateway.purchase(@amount, 'test3', @options)
+    assert response = @gateway.purchase(@amount, @credit_card, @options)
     assert_instance_of Response, response
     assert_equal "Approved", response.message
     assert_equal 'test3', response.params['client_id']
