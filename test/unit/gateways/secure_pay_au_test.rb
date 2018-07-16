@@ -191,6 +191,16 @@ class SecurePayAuTest < Test::Unit::TestCase
     assert_equal 'test3', response.params['client_id']
   end
 
+  def test_successful_triggered_payment_with_transaction_reference_number
+    @gateway.expects(:ssl_post).returns(successful_triggered_payment_response_with_transaction_reference_number)
+
+    assert response = @gateway.purchase(@amount, 'test3', @options.merge(transaction_reference: 'MyTransactionReference'))
+    assert_instance_of Response, response
+    assert_equal 'Approved', response.message
+    assert_equal 'test3', response.params['client_id']
+    assert_equal 'MyTransactionReference', response.params['ponum']
+  end
+
   def test_scrub
     assert_equal @gateway.scrub(pre_scrub), post_scrub
   end
@@ -306,6 +316,49 @@ class SecurePayAuTest < Test::Unit::TestCase
               <cardType>6</cardType>
               <cardDescription>Visa</cardDescription>
             </CreditCardInfo>
+            <settlementDate>20041007</settlementDate>
+          </PeriodicItem>
+        </PeriodicList>
+      </Periodic>
+    </SecurePayMessage>
+    XML
+  end
+
+  def successful_triggered_payment_response_with_transaction_reference_number
+    <<-XML.gsub(/^\s{4}/,'')
+    <?xml version="1.0" encoding="UTF-8"?>
+    <SecurePayMessage>
+      <MessageInfo>
+        <messageID>8af793f9af34bea0ecd7eff71c94d6</messageID>
+        <messageTimestamp>20040710150808428000+600</messageTimestamp>
+        <apiVersion>spxml-3.0</apiVersion>
+      </MessageInfo>
+      <RequestType>Periodic</RequestType>
+      <MerchantInfo>
+        <merchantID>ABC0001</merchantID>
+      </MerchantInfo>
+      <Status>
+        <statusCode>0</statusCode>
+        <statusDescription>Normal</statusDescription>
+      </Status>
+      <Periodic>
+        <PeriodicList count="1">
+          <PeriodicItem ID="1">
+            <actionType>trigger</actionType>
+            <clientID>test3</clientID>
+            <responseCode>00</responseCode>
+            <responseText>Approved</responseText>
+            <successful>yes</successful>
+            <amount>1400</amount>
+            <txnID>011700</txnID>
+            <CreditCardInfo>
+              <pan>424242...242</pan>
+              <expiryDate>09/08</expiryDate>
+              <recurringFlag>no</recurringFlag>
+              <cardType>6</cardType>
+              <cardDescription>Visa</cardDescription>
+            </CreditCardInfo>
+            <ponum>MyTransactionReference</ponum>
             <settlementDate>20041007</settlementDate>
           </PeriodicItem>
         </PeriodicList>

@@ -194,6 +194,7 @@ module ActiveMerchant #:nodoc:
 
         xml.tag! 'actionType', PERIODIC_ACTIONS[action]
         xml.tag! 'clientID', options[:billing_id].to_s
+        xml.tag! 'transactionReference', options[:transaction_reference].to_s if options[:transaction_reference].present?
 
         if credit_card
           xml.tag! 'CreditCardInfo' do
